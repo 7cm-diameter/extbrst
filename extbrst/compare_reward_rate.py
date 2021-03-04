@@ -4,6 +4,7 @@ import numpy as np
 
 from extbrst.model import Action, Agent, Prediction, Probability, Reward
 
+NumberOfTrial = int
 TrialResult = Tuple[Action, Reward, Prediction, Probability]
 Result = List[TrialResult]
 
@@ -22,11 +23,7 @@ def trial_process(agent: Agent, reward_prob: Probability) -> TrialResult:
 
 
 def run(agent: Agent, trial: int, reward_prob: Probability) -> Result:
-    result: Result = []
-    for _ in range(trial):
-        ret = trial_process(agent, reward_prob)
-        result.append(ret)
-    return result
+    return list(map(lambda _: trial_process(agent, reward_prob), range(trial)))
 
 
 if __name__ == '__main__':
@@ -34,13 +31,34 @@ if __name__ == '__main__':
 
     from extbrst.model import GAIAgent
 
-    agent = GAIAgent(1.)
-    crf = 1.
-    extinction = 0.
+    baseline_reward_probs: List[Probability] = [
+        1., 0.75, 0.5, 0.25, 0.1, 0.05, 0.01
+    ]
+    baseline_reward_probs: List[Probability] = [1.]
+    extinction: Probability = 0.
+    baseline_lenght: NumberOfTrial = 200
+    extinction_lenght: NumberOfTrial = 200
 
-    crf_result = run(agent, trial=200, reward_prob=crf)
-    ext_result = run(agent, trial=200, reward_prob=extinction)
+    results: List[Result] = []
+    # run simulations for each baseline reward probability
+    for blrp in baseline_reward_probs:
+        agent = GAIAgent(1., bias=5.)
+        baseline_result = run(agent, trial=baseline_lenght, reward_prob=blrp)
+        ext_result = run(agent,
+                         trial=extinction_lenght,
+                         reward_prob=extinction)
+        results.append(baseline_result + ext_result)
 
-    merged_result = crf_result + ext_result
-    df = DataFrame(merged_result, columns=["action", "reward", "G", "p"])
+    # `sum` can flatten list of list (f: List[List[T]] => List[T])
+    merged_result: List[TrialResult] = sum(results, [])
+    nested_reward_probs: List[List[Probability]] = list(
+        map(
+            lambda blrp: sum([[blrp for _ in range(baseline_lenght)],
+                              [0. for _ in range(extinction_lenght)]], []),
+            baseline_reward_probs))
+    reward_probs: List[Probability] = sum(nested_reward_probs, [])
+
+    df = DataFrame(merged_result,
+                   columns=["action", "reward", "G", "action_prob"])
+    df["reward_prob"] = reward_probs
     df.to_csv("result.csv")
