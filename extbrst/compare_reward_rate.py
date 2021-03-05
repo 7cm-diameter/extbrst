@@ -35,7 +35,6 @@ if __name__ == '__main__':
     baseline_reward_probs: List[Probability] = [
         1., 0.75, 0.5, 0.25, 0.1, 0.05, 0.01
     ]
-    baseline_reward_probs: List[Probability] = [1.]
     extinction: Probability = 0.
     baseline_lenght: NumberOfTrial = 200
     extinction_lenght: NumberOfTrial = 200
