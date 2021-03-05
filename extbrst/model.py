@@ -22,7 +22,7 @@ class Agent(metaclass=ABCMeta):
             self, pred: NDArray[1, Prediction]) -> NDArray[1, Probability]:
         pass
 
-    def choose_action(self, prob: Probability) -> Action:
+    def choose_action(self, prob: NDArray[1, Probability]) -> Action:
         return 0
 
 
