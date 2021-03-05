@@ -26,25 +26,26 @@ class Agent(ABC):
 class GAIAgent(Agent):
     def __init__(self, lamb: float, bias: float = 5.):
         self.__lambda = lamb
-        self.__alpha = 1.
-        self.__beta = 1.
+        self.__alpha_t = 1.
+        self.__beta_t = 1.
         self.__bias = bias
 
     def update(self, reward: Reward, action: Action):
-        self.__alpha += reward * action
-        self.__beta += (1 - reward) * action
+        self.__alpha_t += reward * action
+        self.__beta_t += (1 - reward) * action
 
     def predict(self) -> Prediction:
-        nu = self.__alpha + self.__beta
-        mu = self.__alpha / nu
+        nu_t = self.__alpha_t + self.__beta_t
+        mu_t = self.__alpha_t / nu_t
         alpha = np.exp(2 * self.__lambda)
-        kl_div_a = -betaln(self.__alpha, self.__beta) + \
-            (self.__alpha - alpha) * digamma(self.__alpha) + \
-            (self.__beta - 1) * digamma(self.__beta) + \
-            (alpha + 1 - nu) * digamma(nu)
-        ent_a = - mu * digamma(self.__alpha + 1) - \
-            (1 - mu) * digamma(self.__beta + 1) + digamma(nu + 1)
-        return kl_div_a + ent_a
+        kl_div_a = -betaln(self.__alpha_t, self.__beta_t) \
+            + (self.__alpha_t - alpha) * digamma(self.__alpha_t) \
+            + (self.__beta_t - 1) * digamma(self.__beta_t) \
+            + (alpha + 1 - nu_t) * digamma(nu_t)
+        h_a = - mu_t * digamma(self.__alpha_t + 1) \
+            - (1 - mu_t) * digamma(self.__beta_t + 1) \
+            + digamma(nu_t + 1)
+        return kl_div_a + h_a
 
     def calculate_response_prob(self, pred: Prediction) -> Probability:
         return 1 / (1 + np.exp(-pred - self.__bias))
@@ -56,23 +57,25 @@ class GAIAgent(Agent):
 class SAIAgent(Agent):
     def __init__(self, lamb: float, bias: float):
         self.__lambda = lamb
-        self.__alpha = 1.
-        self.__beta = 1.
+        self.__alpha_t = 1.
+        self.__beta_t = 1.
         self.__bias = bias
 
     def update(self, reward: Reward, action: Action):
-        self.__alpha += reward * action
-        self.__beta += (1 - reward) * action
+        self.__alpha_t += reward * action
+        self.__beta_t += (1 - reward) * action
 
     def predict(self) -> Prediction:
-        nu = self.__alpha + self.__beta
-        mu = self.__alpha / nu
+        nu_t = self.__alpha_t + self.__beta_t
+        mu_t = self.__alpha_t / nu_t
 
-        kl_div_a = - self.__lambda * (2 * mu - 1) + mu * np.log(mu) \
-            + (1 - mu) * np.log(1 - mu)
-        ent_a = - mu * digamma(self.__alpha + 1) \
-            - (1 - mu) * digamma(self.__beta + 1) + digamma(nu + 1)
-        return kl_div_a + ent_a
+        kl_div_a = - self.__lambda * (2 * mu_t - 1) \
+            + mu_t * np.log(mu_t) \
+            + (1 - mu_t) * np.log(1 - mu_t)
+        h_a = - mu_t * digamma(self.__alpha_t + 1) \
+            - (1 - mu_t) * digamma(self.__beta_t + 1) \
+            + digamma(nu_t + 1)
+        return kl_div_a + h_a
 
     def calculate_response_prob(self, pred: Prediction) -> Probability:
         return 1 / (1 + np.exp(-pred - self.__bias))
