@@ -51,3 +51,31 @@ class GAIAgent(Agent):
 
     def emit_action(self, prob: Probability) -> Action:
         return int(np.random.uniform() < prob)
+
+
+class SAIAgent(Agent):
+    def __init__(self, lamb: float, bias: float):
+        self.__lambda = lamb
+        self.__alpha = 1.
+        self.__beta = 1.
+        self.__bias = bias
+
+    def update(self, reward: Reward, action: Action):
+        self.__alpha += reward * action
+        self.__beta += (1 - reward) * action
+
+    def predict(self) -> Prediction:
+        nu = self.__alpha + self.__beta
+        mu = self.__alpha / nu
+
+        kl_div_a = - self.__lambda * (2 * mu - 1) + mu * np.log(mu) \
+            + (1 - mu) * np.log(1 - mu)
+        ent_a = - mu * digamma(self.__alpha + 1) \
+            - (1 - mu) * digamma(self.__beta + 1) + digamma(nu + 1)
+        return kl_div_a + ent_a
+
+    def calculate_response_prob(self, pred: Prediction) -> Probability:
+        return 1 / (1 + np.exp(-pred - self.__bias))
+
+    def emit_action(self, prob: Probability) -> Action:
+        return int(np.random.uniform() < prob)
