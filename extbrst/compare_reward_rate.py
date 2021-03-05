@@ -5,15 +5,15 @@ import numpy as np
 from extbrst.model import Action, Agent, Prediction, Probability, Reward
 
 NumberOfTrial = int
-TrialResult = Tuple[Action, Reward, Prediction, Probability]
-Result = List[TrialResult]
+Result = Tuple[Action, Reward, Prediction, Probability]
+OutputData = Tuple[Probability, Action, Reward, Prediction, Probability]
 
 
 def reward_function(prob: Probability) -> Reward:
     return int(np.random.uniform() < prob)
 
 
-def trial_process(agent: Agent, reward_prob: Probability) -> TrialResult:
+def trial_process(agent: Agent, reward_prob: Probability) -> Result:
     pred = agent.predict()
     prob = agent.calculate_response_prob(-pred)
     action = agent.emit_action(prob)
@@ -22,7 +22,7 @@ def trial_process(agent: Agent, reward_prob: Probability) -> TrialResult:
     return action, reward, pred, prob
 
 
-def run(agent: Agent, trial: int, reward_prob: Probability) -> Result:
+def run(agent: Agent, trial: int, reward_prob: Probability) -> List[Result]:
     return list(map(lambda _: trial_process(agent, reward_prob), range(trial)))
 
 
@@ -40,30 +40,28 @@ if __name__ == '__main__':
     baseline_lenght: NumberOfTrial = 200
     extinction_lenght: NumberOfTrial = 200
 
-    results: List[Result] = []
+    results: List[List[OutputData]] = []
     # run simulations for each baseline reward probability
     for blrp in baseline_reward_probs:
         agent = GAIAgent(1., bias=5.)
-        baseline_result = run(agent, trial=baseline_lenght, reward_prob=blrp)
-        ext_result = run(agent,
-                         trial=extinction_lenght,
-                         reward_prob=extinction)
+        _baseline_result = run(agent, trial=baseline_lenght, reward_prob=blrp)
+        _ext_result = run(agent,
+                          trial=extinction_lenght,
+                          reward_prob=extinction)
+        baseline_result: List[OutputData] = \
+            list(map(lambda br: (blrp, ) + br, _baseline_result))
+        ext_result: List[OutputData] = \
+            list(map(lambda er: (extinction, ) + er, _ext_result))
         results.append(baseline_result + ext_result)
 
-    # `sum` can flatten list of list (f: List[List[T]] => List[T])
-    merged_result: List[TrialResult] = sum(results, [])
-    nested_reward_probs: List[List[Probability]] = list(
-        map(
-            lambda blrp: sum([[blrp for _ in range(baseline_lenght)],
-                              [0. for _ in range(extinction_lenght)]], []),
-            baseline_reward_probs))
-    reward_probs: List[Probability] = sum(nested_reward_probs, [])
-
-    df = DataFrame(merged_result,
-                   columns=["action", "reward", "G", "action_prob"])
-    df["reward_prob"] = reward_probs
     data_dir = get_nth_ancestor(__file__, 1).joinpath("data")
     if not data_dir.exists():
         data_dir.mkdir()
     filename = data_dir.joinpath("compare_reward_rate.csv")
-    df.to_csv(filename)
+
+    # `sum` can flatten list of list (f: List[List[T]] => List[T])
+    merged_result = sum(results, [])
+    df = DataFrame(
+        merged_result,
+        columns=["reward_prob", "action", "reward", "G", "action_prob"])
+    df.to_csv(filename, index=False)
