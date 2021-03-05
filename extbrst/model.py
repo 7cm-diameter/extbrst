@@ -1,71 +1,76 @@
-from abc import ABC
+from abc import ABC, ABCMeta
 
 import numpy as np
+from nptyping import NDArray
 from scipy.special import betaln, digamma
 
 Prediction = float
 Probability = float
 Action = int
 Reward = int
+NumberOfOptions = int
 
 
-class Agent(ABC):
+class Agent(metaclass=ABCMeta):
     def update(self, reward: Reward, action: Action):
         pass
 
-    def predict(self) -> Prediction:
-        return 0.
+    def predict(self) -> NDArray[1, Prediction]:
+        pass
 
-    def calculate_response_prob(self, pred: Prediction) -> Probability:
-        return 0.
+    def calculate_response_probs(
+            self, pred: NDArray[1, Prediction]) -> NDArray[1, Probability]:
+        pass
 
-    def emit_action(self, prob: Probability) -> Action:
+    def choose_action(self, prob: Probability) -> Action:
         return 0
 
 
 class GAIAgent(Agent):
-    def __init__(self, lamb: float, bias: float = 5.):
-        self.__lambda = lamb
-        self.__alpha_t = 1.
-        self.__beta_t = 1.
-        self.__bias = bias
+    def __init__(self, lamb: float, k: NumberOfOptions):
+        self.__alpha = np.exp(2 * lamb)
+        self.__alpha_t = np.ones(k)
+        self.__beta_t = np.ones(k)
+        self.__k = k
 
     def update(self, reward: Reward, action: Action):
-        self.__alpha_t += reward * action
-        self.__beta_t += (1 - reward) * action
+        self.__alpha_t[action] += reward
+        self.__beta_t[action] += (1 - reward)
 
-    def predict(self) -> Prediction:
+    def predict(self) -> NDArray[1, Prediction]:
         nu_t = self.__alpha_t + self.__beta_t
         mu_t = self.__alpha_t / nu_t
-        alpha = np.exp(2 * self.__lambda)
         kl_div_a = -betaln(self.__alpha_t, self.__beta_t) \
-            + (self.__alpha_t - alpha) * digamma(self.__alpha_t) \
+            + (self.__alpha_t - self.__alpha) * digamma(self.__alpha_t) \
             + (self.__beta_t - 1) * digamma(self.__beta_t) \
-            + (alpha + 1 - nu_t) * digamma(nu_t)
+            + (self.__alpha + 1 - nu_t) * digamma(nu_t)
         h_a = - mu_t * digamma(self.__alpha_t + 1) \
             - (1 - mu_t) * digamma(self.__beta_t + 1) \
             + digamma(nu_t + 1)
         return kl_div_a + h_a
 
-    def calculate_response_prob(self, pred: Prediction) -> Probability:
-        return 1 / (1 + np.exp(-pred - self.__bias))
+    def calculate_response_probs(
+            self, preds: NDArray[1, Prediction]) -> NDArray[1, Probability]:
+        pmax = np.max(preds)
+        pexp = np.exp(preds - pmax)
+        return pexp / np.sum(pexp)
 
-    def emit_action(self, prob: Probability) -> Action:
-        return int(np.random.uniform() < prob)
+    def choose_action(self, probs: NDArray[1, Probability]) -> Action:
+        return np.random.choice(self.__k, p=probs)
 
 
 class SAIAgent(Agent):
-    def __init__(self, lamb: float, bias: float):
+    def __init__(self, lamb: float, k: NumberOfOptions):
         self.__lambda = lamb
-        self.__alpha_t = 1.
-        self.__beta_t = 1.
-        self.__bias = bias
+        self.__alpha_t = np.ones(k)
+        self.__beta_t = np.ones(k)
+        self.__k = k
 
     def update(self, reward: Reward, action: Action):
-        self.__alpha_t += reward * action
-        self.__beta_t += (1 - reward) * action
+        self.__alpha_t[action] += reward
+        self.__beta_t[action] += (1 - reward)
 
-    def predict(self) -> Prediction:
+    def predict(self) -> NDArray[1, Prediction]:
         nu_t = self.__alpha_t + self.__beta_t
         mu_t = self.__alpha_t / nu_t
 
@@ -77,8 +82,11 @@ class SAIAgent(Agent):
             + digamma(nu_t + 1)
         return kl_div_a + h_a
 
-    def calculate_response_prob(self, pred: Prediction) -> Probability:
-        return 1 / (1 + np.exp(-pred - self.__bias))
+    def calculate_response_probs(
+            self, preds: NDArray[1, Prediction]) -> NDArray[1, Probability]:
+        pmax = np.max(preds)
+        pexp = np.exp(preds - pmax)
+        return pexp / np.sum(pexp)
 
-    def emit_action(self, prob: Probability) -> Action:
-        return int(np.random.uniform() < prob)
+    def choose_action(self, probs: NDArray[1, Probability]) -> Action:
+        return np.random.choice(self.__k, p=probs)
