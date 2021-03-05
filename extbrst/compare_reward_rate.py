@@ -30,6 +30,7 @@ if __name__ == '__main__':
     from pandas import DataFrame
 
     from extbrst.model import GAIAgent
+    from extbrst.util import get_nth_ancestor
 
     baseline_reward_probs: List[Probability] = [
         1., 0.75, 0.5, 0.25, 0.1, 0.05, 0.01
@@ -61,4 +62,8 @@ if __name__ == '__main__':
     df = DataFrame(merged_result,
                    columns=["action", "reward", "G", "action_prob"])
     df["reward_prob"] = reward_probs
-    df.to_csv("result.csv")
+    data_dir = get_nth_ancestor(__file__, 1).joinpath("data")
+    if not data_dir.exists():
+        data_dir.mkdir()
+    filename = data_dir.joinpath("compare_reward_rate.csv")
+    df.to_csv(filename)
